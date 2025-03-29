@@ -22,6 +22,15 @@ Your tweet must also include one of:
 
 Those tweets will get discovered by a bot and included in the website.
 
+> [!NOTE]
+> 
+> Bluesky tweets have a strict character limit. If you want to excerpt more
+> text than fits in a tweet, please add a reaction gif with ALT text.
+>
+> The ALT text will be used as the excerpt.
+>
+> Yes, this is a huge hack.
+
 ## Change your mind?
 
 If you delete your tweet, the entry in the website will be suppressed.
