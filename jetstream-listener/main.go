@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/gorilla/websocket"
 	_ "modernc.org/sqlite"
@@ -84,30 +83,7 @@ func main() {
 			// so that we can resume if interrupted.
 			counter = counter + 1
 			if counter % 1000 == 0 {
-				// Parse the JSON message
-				var event map[string]interface{}
-				//if err := json.Unmarshal(message, &event); err != nil {
-				decoder := json.NewDecoder(bytes.NewReader(message))
-				decoder.UseNumber() // 👈 prevent float64 conversion
-				if err := decoder.Decode(&event); err != nil {
-					log.Printf("JSON unmarshal error: %v", err)
-					continue
-				}
-				time_us, ok := event["time_us"].(json.Number)
-				if !ok {
-					log.Fatalf("time_us is not a json.Number: %v")
-				}
-
-				time_usInt, err := time_us.Int64()
-				if err != nil {
-					log.Fatalf("time_us was not an int64: %v", err)
-				}
-
-				log.Printf("resetting time_us to %v (%vs ago)", time_usInt, (time.Now().UnixMicro() - time_usInt) / 1e6)
-				err = setCursor(db, time_usInt)
-				if err != nil {
-					log.Fatalf("Failed to set cursor: %v", err)
-				}
+				updateCursor(db, message)
 				counter = 0
 			}
 

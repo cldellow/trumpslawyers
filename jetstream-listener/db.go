@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
+	"log"
+	"time"
 )
 
 func initDB(dbPath string) (*sql.DB, error) {
@@ -58,4 +62,28 @@ func setCursor(db *sql.DB, time_us int64) (error) {
 	return err
 }
 
+func updateCursor(db *sql.DB, message []byte) {
+	// Parse the JSON message
+	var event map[string]interface{}
+	//if err := json.Unmarshal(message, &event); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(message))
+	decoder.UseNumber() // 👈 prevent float64 conversion
+	if err := decoder.Decode(&event); err != nil {
+		log.Fatalf("JSON unmarshal error: %v", err)
+	}
+	time_us, ok := event["time_us"].(json.Number)
+	if !ok {
+		log.Fatalf("time_us is not a json.Number: %v")
+	}
 
+	time_usInt, err := time_us.Int64()
+	if err != nil {
+		log.Fatalf("time_us was not an int64: %v", err)
+	}
+
+	log.Printf("resetting time_us to %v (%vs ago)", time_usInt, (time.Now().UnixMicro() - time_usInt) / 1e6)
+	err = setCursor(db, time_usInt)
+	if err != nil {
+		log.Fatalf("Failed to set cursor: %v", err)
+	}
+}
