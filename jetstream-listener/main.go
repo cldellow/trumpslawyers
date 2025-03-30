@@ -65,13 +65,12 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	counter := 0
-
 	// Read messages from Jetstream
 	done := make(chan struct{})
 
 	go func() {
 		defer close(done)
+		counter := 0
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
