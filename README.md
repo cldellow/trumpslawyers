@@ -13,29 +13,30 @@ This repo tries to provide a centralized way to track that activity.
 
 # How to use this
 
-On Bluesky, tweet `@trumpslawyers.bsky.social`. Your tweet should reference a DOJ case by including a CourtListener URL to a docket or docket entry.
+On Bluesky, reply to interesting tweets and tag `@trumpslawyers.bsky.social`.
 
-Your tweet must also include one of:
+Your tweet should also reference a DOJ case by including:
 
-- a link to media commentary (e.g. a website URL, or quote-tweeting a Bluesky tweet)
-- an excerpt from the linked docket entry
+- a CourtListener Docket URL, e.g. https://www.courtlistener.com/docket/69741724/jgg-v-trump/
+- a CourtListener RECAP URL, e.g. https://storage.courtlistener.com/recap/gov.uscourts.dcd.278436/gov.uscourts.dcd.278436.25.0.pdf
 
 Those tweets will get discovered by a bot and included in the website.
 
-> [!NOTE]
-> 
-> Bluesky tweets have a strict character limit. If you want to excerpt more
-> text than fits in a tweet, please add a reaction gif with ALT text.
->
-> The ALT text will be used as the excerpt.
->
-> Yes, this is a huge hack.
+If you change your mind, you can delete your reply. The parent tweet will no longer show up in the website.
 
-## Change your mind?
+# Posters: how do I avoid notification spam?
 
-If you delete your tweet, the entry in the website will be suppressed.
+Use Bluesky's mute feature if the notification spam is too much.
+
+Mute the word `trumpslawyers.bsky.social` to avoid seeing notifications.
+
+# Posters: what if I don't want my content re-used by this bot?
+
+On the site, all posts are attributed to their author and link back to the source post.
+
+If you don't want your posts collated by the bot, email me at cldellow@gmail.com and I'll write something to exclude
+you.
 
 # How it works
 
 TBD
-
