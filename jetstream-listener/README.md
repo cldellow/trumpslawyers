@@ -11,6 +11,15 @@ The service is meant to be interruptible - it resumes processing where it left o
 as it is restarted before the Jetstream has moved on. The Jetstream generally has about
 30 hours of data in it, so we can tolerate up to a day of downtime.
 
+# Dev
+
+Run with `go run *.go`.
+
+A `doj47.sqlite` DB will be created if needed.
+
+If you're testing locally, you might want to create your own account and update the DID
+that is used, rather than testing against the real doj47.com DID.
+
 # DB schema
 
 ## `post_mentions`

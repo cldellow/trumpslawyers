@@ -89,7 +89,7 @@ func updateCursor(db *sql.DB, message []byte) {
 	}
 }
 
-func upsertPostMention(db *sql.DB, did string, rkey string, createdAt string, json string) (error) {
-	_, err := db.Exec(`INSERT OR IGNORE INTO post_mentions(did, rkey, created_at, json) VALUES (?, ?, ?, ?)`, did, rkey, createdAt, json)
+func upsertPostMention(db *sql.DB, did string, rkey string, createdAt string, replyTo *string, json string) (error) {
+	_, err := db.Exec(`INSERT OR IGNORE INTO post_mentions(did, rkey, created_at, reply_to, json) VALUES (?, ?, ?, ?, ?)`, did, rkey, createdAt, replyTo, json)
 	return err
 }

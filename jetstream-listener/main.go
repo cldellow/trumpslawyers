@@ -124,14 +124,22 @@ func processEvent(db *sql.DB, event map[string]interface{}, message []byte) {
 		did := event["did"].(string)
 		rkey := commit["rkey"].(string)
 
-		record := commit["record"].(map[string]interface{})
-		createdAt := record["createdAt"].(string)
 
 		fmt.Printf("operation=%v, did=%v, rkey=%v\n", operation, did, rkey)
 
-		// Eventually: extract if it was a reply, e.g. .commit.record.reply.parent.url
 		if operation == "create" {
-			err := upsertPostMention(db, did, rkey, createdAt, string(message))
+			// Eventually: extract if it was a reply, e.g. .commit.record.reply.parent.url
+			record := commit["record"].(map[string]interface{})
+			reply := record["reply"]
+			var reply_to *string = nil
+			if reply != nil {
+				replyMap := reply.(map[string]interface{})
+				parent := replyMap["parent"].(map[string]interface{})
+				url := parent["uri"].(string)
+				reply_to = &url
+			}
+			createdAt := record["createdAt"].(string)
+			err := upsertPostMention(db, did, rkey, createdAt, reply_to, string(message))
 			if err != nil {
 				log.Fatalf("error upserting %v/%v: %v", did, rkey, err)
 			}
