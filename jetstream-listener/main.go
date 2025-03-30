@@ -86,9 +86,11 @@ func main() {
 				counter = 0
 			}
 
-			// Only parse it if it contains a reference to doj47.com
+			// Only parse it if it contains a reference to doj47.com, or if it's
+			// a delete.
 			doj47Did := []byte("did:plc:dcclyrbpqvapa3f44zm4w4zq")
-			if !bytes.Contains(message, doj47Did) {
+			deleteBytes := []byte("\"delete\"")
+			if !(bytes.Contains(message, doj47Did) || bytes.Contains(message, deleteBytes)) {
 				continue
 			}
 
@@ -115,7 +117,9 @@ func main() {
 
 // processEvent handles the incoming event
 func processEvent(db *sql.DB, event map[string]interface{}, message []byte) {
-	fmt.Printf("Received %v\n", string(message))
+	// This is quite spammy with all the deletes - if we want to log for debugging,
+	// we probably 
+	// fmt.Printf("Received %v\n", string(message))
 
 	kind := event["kind"]
 	if kind == "commit" {
@@ -125,9 +129,8 @@ func processEvent(db *sql.DB, event map[string]interface{}, message []byte) {
 		rkey := commit["rkey"].(string)
 
 
-		fmt.Printf("operation=%v, did=%v, rkey=%v\n", operation, did, rkey)
-
 		if operation == "create" {
+			fmt.Printf("operation=%v, did=%v, rkey=%v\n", operation, did, rkey)
 			// Eventually: extract if it was a reply, e.g. .commit.record.reply.parent.url
 			record := commit["record"].(map[string]interface{})
 			reply := record["reply"]
@@ -142,6 +145,11 @@ func processEvent(db *sql.DB, event map[string]interface{}, message []byte) {
 			err := upsertPostMention(db, did, rkey, createdAt, reply_to, string(message))
 			if err != nil {
 				log.Fatalf("error upserting %v/%v: %v", did, rkey, err)
+			}
+		} else if operation == "delete" {
+			err := deletePostMention(db, did, rkey)
+			if err != nil {
+				log.Fatalf("error deleting %v/%v: %v", did, rkey, err)
 			}
 		}
 	}

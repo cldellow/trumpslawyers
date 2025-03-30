@@ -93,3 +93,8 @@ func upsertPostMention(db *sql.DB, did string, rkey string, createdAt string, re
 	_, err := db.Exec(`INSERT OR IGNORE INTO post_mentions(did, rkey, created_at, reply_to, json) VALUES (?, ?, ?, ?, ?)`, did, rkey, createdAt, replyTo, json)
 	return err
 }
+
+func deletePostMention(db *sql.DB, did string, rkey string) (error) {
+	_, err := db.Exec(`DELETE FROM post_mentions WHERE did = ? AND rkey = ?`, did, rkey)
+	return err
+}
