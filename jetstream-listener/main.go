@@ -1,5 +1,8 @@
 package main
 
+// The orchestrator: kicks off some goroutines, listens for
+// Ctrl+C.
+
 import (
 	"log"
 	"os"
@@ -24,6 +27,7 @@ func main() {
 	done := make(chan struct{})
 
 	go jetstreamListener(db, done)
+	go crawlPostMentions(db, done)
 
 	// Wait for interrupt signal to gracefully shutdown
 	select {

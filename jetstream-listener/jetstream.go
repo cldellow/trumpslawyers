@@ -1,5 +1,10 @@
 package main
 
+// Subscribes to the Jetstream, resuming where we last left off.
+//
+// Listens for posts mentioning @doj47.com, inserts them into
+// post_mentions table with minimal processing for later evaluation.
+
 import (
 	"bytes"
 	"database/sql"
