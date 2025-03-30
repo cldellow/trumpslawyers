@@ -34,8 +34,9 @@ func initDB(dbPath string) (*sql.DB, error) {
 	CREATE TABLE IF NOT EXISTS post_mentions (
 		did TEXT NOT NULL,
 		rkey TEXT NOT NULL,
-		time_us INTEGER NOT NULL,
+		created_at TEXT NOT NULL,
 		json TEXT NOT NULL,
+		reply_to TEXT,
 		processed BOOLEAN NOT NULL DEFAULT FALSE,
 		PRIMARY KEY(did, rkey)
 	);`
@@ -86,4 +87,9 @@ func updateCursor(db *sql.DB, message []byte) {
 	if err != nil {
 		log.Fatalf("Failed to set cursor: %v", err)
 	}
+}
+
+func upsertPostMention(db *sql.DB, did string, rkey string, createdAt string, json string) (error) {
+	_, err := db.Exec(`INSERT OR IGNORE INTO post_mentions(did, rkey, created_at, json) VALUES (?, ?, ?, ?)`, did, rkey, createdAt, json)
+	return err
 }

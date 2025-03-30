@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -86,10 +86,9 @@ func main() {
 				counter = 0
 			}
 
-			// Only parse it if it contains a reference to trumpslawyers,
-			// did:plc:dcclyrbpqvapa3f44zm4w4zq
-			trumpslawyersDid := []byte("did:plc:dcclyrbpqvapa3f44zm4w4zq")
-			if !bytes.Contains(message, trumpslawyersDid) {
+			// Only parse it if it contains a reference to doj47.com
+			doj47Did := []byte("did:plc:dcclyrbpqvapa3f44zm4w4zq")
+			if !bytes.Contains(message, doj47Did) {
 				continue
 			}
 
@@ -101,7 +100,7 @@ func main() {
 			}
 
 			// Process the event
-			processEvent(event)
+			processEvent(db, event, message)
 		}
 	}()
 
@@ -115,9 +114,28 @@ func main() {
 }
 
 // processEvent handles the incoming event
-func processEvent(event map[string]interface{}) {
-	// Extract relevant information from the event
-	// For demonstration, we'll print the entire event
-	// In a real application, you might want to extract specific fields
-	fmt.Printf("Received event: %+v\n", event)
+func processEvent(db *sql.DB, event map[string]interface{}, message []byte) {
+	fmt.Printf("Received %v\n", string(message))
+
+	kind := event["kind"]
+	if kind == "commit" {
+		commit := event["commit"].(map[string]interface{})
+		operation := commit["operation"].(string)
+		did := event["did"].(string)
+		rkey := commit["rkey"].(string)
+
+		record := commit["record"].(map[string]interface{})
+		createdAt := record["createdAt"].(string)
+
+		fmt.Printf("operation=%v, did=%v, rkey=%v\n", operation, did, rkey)
+
+		// Eventually: extract if it was a reply, e.g. .commit.record.reply.parent.url
+		if operation == "create" {
+			err := upsertPostMention(db, did, rkey, createdAt, string(message))
+			if err != nil {
+				log.Fatalf("error upserting %v/%v: %v", did, rkey, err)
+			}
+		}
+	}
+//	upsertPostMessage(db, 
 }
