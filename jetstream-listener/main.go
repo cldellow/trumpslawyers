@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/gorilla/websocket"
 	_ "modernc.org/sqlite"
@@ -102,7 +103,7 @@ func main() {
 					log.Fatalf("time_us was not an int64: %v", err)
 				}
 
-				log.Printf("resetting time_us to %v", time_usInt)
+				log.Printf("resetting time_us to %v (%vs ago)", time_usInt, (time.Now().UnixMicro() - time_usInt) / 1e6)
 				err = setCursor(db, time_usInt)
 				if err != nil {
 					log.Fatalf("Failed to set cursor: %v", err)
