@@ -80,6 +80,11 @@ func GetBlueskyPost(uri string) (*PostInfo, error) {
 	}
 
 	post := raw.Posts[0]
+	first_post, err := ExtractFirstPostJSON(string(respData))
+	if err != nil {
+		return nil, err
+	}
+
 	return &PostInfo{
 		URL:         post.URI,
 		DID:         post.Author.DID,
@@ -91,6 +96,29 @@ func GetBlueskyPost(uri string) (*PostInfo, error) {
 		Reposts:     post.RepostCount,
 		Likes:       post.LikeCount,
 		Quotes:      post.QuoteCount,
-		JSON:        string(respData),
+		JSON:        first_post,
 	}, nil
+}
+
+func ExtractFirstPostJSON(rawJSON string) (string, error) {
+	var parsed struct {
+		Posts []map[string]interface{} `json:"posts"`
+	}
+
+	err := json.Unmarshal([]byte(rawJSON), &parsed)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	if len(parsed.Posts) == 0 {
+		return "", nil // no posts
+	}
+
+	// Marshal just the first post back into JSON string
+	firstPostBytes, err := json.Marshal(parsed.Posts[0])
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal first post: %w", err)
+	}
+
+	return string(firstPostBytes), nil
 }
