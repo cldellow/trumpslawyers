@@ -2,16 +2,16 @@
 
 # How to use this
 
-On Bluesky, reply to interesting tweets and tag `@doj47.com`.
+On Bluesky, reply to interesting posts and tag `@doj47.com`.
 
-Your tweet should also reference a DOJ case by including:
+Your post should also reference a DOJ case by including:
 
 - a CourtListener Docket URL, e.g. https://www.courtlistener.com/docket/69741724/jgg-v-trump/
 - a CourtListener RECAP URL, e.g. https://storage.courtlistener.com/recap/gov.uscourts.dcd.278436/gov.uscourts.dcd.278436.25.0.pdf
 
-Those tweets will get discovered by a bot and included in the website.
+Those posts will get discovered by a bot and included in the website.
 
-If you change your mind, you can delete your reply. The parent tweet will no longer show up in the website.
+If you change your mind, you can delete your reply. The parent post will no longer show up in the website.
 
 # Posters: how do I avoid notification spam?
 
@@ -28,4 +28,4 @@ you.
 
 # How it works
 
-TBD
+See [jetstream-listener](https://github.com/cldellow/trumpslawyers/tree/main/jetstream-listener) for technical details.
