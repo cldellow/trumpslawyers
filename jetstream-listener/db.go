@@ -90,6 +90,27 @@ func initDB(dbPath string) (*sql.DB, error) {
 		return db, err
 	}
 
+	stmt = `
+CREATE TABLE IF NOT EXISTS posts (
+	url TEXT NOT NULL,
+  did TEXT NOT NULL,
+	handle TEXT NOT NULL,
+	display_name TEXT NOT NULL,
+	avatar TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	replies INTEGER NOT NULL,
+	reposts INTEGER NOT NULL,
+	likes INTEGER NOT NULL,
+	quotes INTEGER NOT NULL,
+	json TEXT NOT NULL,
+	PRIMARY KEY (url)
+)
+`
+	_, err = db.Exec(stmt)
+	if err != nil {
+		return db, err
+	}
+
 	return db, err
 }
 
