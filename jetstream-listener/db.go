@@ -1,5 +1,7 @@
 package main
 
+// Functions to interact with the doj47.sqlite database.
+
 import (
 	"bytes"
 	"database/sql"
@@ -14,13 +16,19 @@ func initDB(dbPath string) (*sql.DB, error) {
 		return nil, err
 	}
 
+	// Enable WAL mode
+	_, err = db.Exec(`PRAGMA journal_mode=WAL`)
+	if err != nil {
+		return db, err
+	}
+
 	// A table to track the highwatermark of our Jetstream listener,
 	// so we can resume if interrupted.
-	createTableSQL := `
+	stmt := `
 	CREATE TABLE IF NOT EXISTS cursor (
 		time_us INTEGER
 	);`
-	_, err = db.Exec(createTableSQL)
+	_, err = db.Exec(stmt)
 	if err != nil {
 		return db, err
 	}
@@ -30,7 +38,7 @@ func initDB(dbPath string) (*sql.DB, error) {
 		return db, err
 	}
 
-	createTableSQL = `
+	stmt = `
 	CREATE TABLE IF NOT EXISTS post_mentions (
 		did TEXT NOT NULL,
 		rkey TEXT NOT NULL,
@@ -38,9 +46,27 @@ func initDB(dbPath string) (*sql.DB, error) {
 		json TEXT NOT NULL,
 		reply_to TEXT,
 		processed BOOLEAN NOT NULL DEFAULT FALSE,
+		courtlistener_url TEXT, -- e.g. https://storage.courtlistener.com/recap/gov.uscourts.dcd.278436/gov.uscourts.dcd.278436.25.0.pdf or https://www.courtlistener.com/docket/69741724/jgg-v-trump/
+		docket_id INTEGER, -- e.g. 69741724
+		recap_slug TEXT, -- e.g. gov.uscourts.dcd.278436
 		PRIMARY KEY(did, rkey)
 	);`
-	_, err = db.Exec(createTableSQL)
+	_, err = db.Exec(stmt)
+	if err != nil {
+		return db, err
+	}
+
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_post_mentions_unprocessed ON post_mentions(did, rkey) WHERE processed = FALSE`)
+	if err != nil {
+		return db, err
+	}
+
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_post_mentions_docket_id ON post_mentions(docket_id) WHERE docket_id IS NOT NULL`)
+	if err != nil {
+		return db, err
+	}
+
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_post_mentions_recap_slug ON post_mentions(recap_slug) WHERE recap_slug IS NOT NULL`)
 	if err != nil {
 		return db, err
 	}
@@ -96,5 +122,30 @@ func upsertPostMention(db *sql.DB, did string, rkey string, createdAt string, re
 
 func deletePostMention(db *sql.DB, did string, rkey string) (error) {
 	_, err := db.Exec(`DELETE FROM post_mentions WHERE did = ? AND rkey = ?`, did, rkey)
+	return err
+}
+
+type UnprocessedPostMention struct {
+	did string
+	rkey string
+	reply_to *string
+	json string
+};
+
+func getUnprocessedPostMention(db *sql.DB) (*UnprocessedPostMention, error) {
+	row := db.QueryRow(`SELECT did, rkey, reply_to, json FROM post_mentions WHERE NOT processed LIMIT 1`)
+	var upm UnprocessedPostMention
+	err := row.Scan(&upm.did, &upm.rkey, &upm.reply_to, &upm.json)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &upm, nil
+}
+
+func markPostMentionAsProcessed(db *sql.DB, did string, rkey string) (error) {
+	_, err := db.Exec(`UPDATE post_mentions SET processed = TRUE WHERE did = ? AND rkey = ?`, did, rkey)
 	return err
 }

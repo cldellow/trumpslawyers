@@ -30,3 +30,19 @@ When someone mentions `@doj47.com`, the underlying post has a reference to that
 account's DID: `did:plc:dcclyrbpqvapa3f44zm4w4zq`.
 
 Those mentions get logged in `post_mentions` with `processed` set to `0`.
+
+## `post`
+
+This is a mirror of Bluesky posts.
+
+Basically, it's the output of https://docs.bsky.app/docs/api/app-bsky-feed-get-posts.
+
+## `post_queue`
+
+This is a queue of post IDs to be fetched.
+
+Posts will get dumped into `post`. We track when we last fetched a post.
+
+We are willing to re-fetch posts on some frequency, e.g. to capture new like/RT counts.
+We try to be a good citizen -- if a post hasn't changed much since we last fetched it,
+we'll back off on our refetch attempts.
