@@ -24,6 +24,11 @@ func main() {
 		log.Fatalf("Failed to init post mentions DB: %v", err)
 	}
 
+	mirrorBlueskyPostsDb, err := initDB(dbPath)
+	if err != nil {
+		log.Fatalf("Failed to init mirror Bluesky posts DB: %v", err)
+	}
+
 	// Channel to handle interrupt signals
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
@@ -37,6 +42,7 @@ func main() {
 	// each goroutine its own handle.
 	go jetstreamListener(jetstreamDb, done)
 	go crawlPostMentions(crawlPostMentionsDb, done)
+	go mirrorBlueskyPosts(mirrorBlueskyPostsDb, done)
 
 	// Wait for interrupt signal to gracefully shutdown
 	select {

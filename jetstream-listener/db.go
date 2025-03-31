@@ -85,6 +85,11 @@ func initDB(dbPath string) (*sql.DB, error) {
 		return db, err
 	}
 
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_post_queue_next_fetch_at ON post_queue(next_fetch_at DESC)`)
+	if err != nil {
+		return db, err
+	}
+
 	return db, err
 }
 
@@ -179,8 +184,24 @@ func updatePostMentionCourtListenerUrl(db *sql.DB, did string, rkey string, url 
 	return err
 }
 
-
 func queuePostFetch(db *sql.DB, uri string) (error) {
 	_, err := db.Exec(`INSERT OR IGNORE INTO post_queue(uri) VALUES(?)`, uri)
 	return err
+}
+
+type NextQueuedPost struct {
+	uri string
+	fetchable bool
+};
+func getNextPost(db *sql.DB) (*NextQueuedPost, error) {
+	row := db.QueryRow(`SELECT uri, next_fetch_at IS NULL OR next_fetch_at < datetime() AS fetchable FROM post_queue ORDER BY next_fetch_at DESC NULLS FiRST LIMIT 1`)
+	var nqp NextQueuedPost
+	err := row.Scan(&nqp.uri, &nqp.fetchable)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &nqp, nil
 }
