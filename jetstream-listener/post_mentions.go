@@ -2,8 +2,9 @@ package main
 
 import (
 	"database/sql"
-	"time"
 	"log"
+	"regexp"
+	"time"
 )
 
 // Polls post_mentions for entries that have processed = 0.
@@ -23,11 +24,37 @@ func crawlPostMentions(db *sql.DB, done chan struct{}) {
 		}
 
 		if upm != nil {
-			processPostMention(db, *upm)
+			err = processPostMention(db, *upm)
+			if err != nil {
+				log.Fatalf("processPostMention error: %v\n", err)
+			}
+
 		} else {
 			time.Sleep(1 * time.Second)
 		}
 	}
+}
+
+// ExtractDocketID extracts the numeric ID from a courtlistener.com docket URL.
+// Example: https://www.courtlistener.com/docket/69741724/jgg-v-trump/ → "69741724"
+func extractCourtListenerDocketID(url string) (string, string) {
+	re := regexp.MustCompile(`https://www[.]courtlistener[.]com/docket/(\d+)/`)
+	matches := re.FindStringSubmatch(url)
+	if len(matches) < 2 {
+		return "", ""
+	}
+	return matches[0], matches[1]
+}
+
+func extractCourtListenerRecapSlug(url string) (string, string) {
+	// RECAP file: https://storage.courtlistener.com/recap/gov.uscourts.dcd.278436/gov.uscourts.dcd.278436.25.0.pdf
+	re := regexp.MustCompile(`https://storage[.]courtlistener[.]com/recap/([^/]+)/[^ "/]+[.]pdf`)
+	matches := re.FindStringSubmatch(url)
+	if len(matches) < 2 {
+		return "", ""
+	}
+	return matches[0], matches[1]
+
 }
 
 func processPostMention(db *sql.DB, upm UnprocessedPostMention) (error) {
@@ -36,17 +63,26 @@ func processPostMention(db *sql.DB, upm UnprocessedPostMention) (error) {
 		err := markPostMentionAsProcessed(db, upm.did, upm.rkey)
 		return err
 	}
-
-	// If they replied to a post, we should try to fetch it.
-	// Idea: we should enqueue it to be fetched.
-
-	// We should detect if they included a CourtListener URL:
-	// Docket: https://www.courtlistener.com/docket/69741724/jgg-v-trump/
-	// RECAP file: https://storage.courtlistener.com/recap/gov.uscourts.dcd.278436/gov.uscourts.dcd.278436.25.0.pdf
-	// ...and populate the top-level docket or recap fields accordingly.
-
 	log.Printf("upm %v\n", upm)
-	return nil
+
+	// If they replied to a post, we should try to fetch the post they replied to.
+	err := queuePostFetch(db, *upm.reply_to)
+	if err != nil {
+		return err
+	}
+
+	url, docket_id := extractCourtListenerDocketID(upm.json)
+	if docket_id != "" {
+		updatePostMentionCourtListenerUrl(db, upm.did, upm.rkey, url)
+		updatePostMentionDocketId(db, upm.did, upm.rkey, docket_id)
+	}
+
+	url, recap_slug := extractCourtListenerRecapSlug(upm.json)
+	if recap_slug != "" {
+		updatePostMentionCourtListenerUrl(db, upm.did, upm.rkey, url)
+		updatePostMentionRecapSlug(db, upm.did, upm.rkey, recap_slug)
+	}
+	
+	err = markPostMentionAsProcessed(db, upm.did, upm.rkey)
+	return err
 }
-
-

@@ -22,6 +22,11 @@ func initDB(dbPath string) (*sql.DB, error) {
 		return db, err
 	}
 
+	_, err = db.Exec(`PRAGMA busy_timeout = 30000`)
+	if err != nil {
+		return db, err
+	}
+
 	// A table to track the highwatermark of our Jetstream listener,
 	// so we can resume if interrupted.
 	stmt := `
@@ -67,6 +72,15 @@ func initDB(dbPath string) (*sql.DB, error) {
 	}
 
 	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_post_mentions_recap_slug ON post_mentions(recap_slug) WHERE recap_slug IS NOT NULL`)
+	if err != nil {
+		return db, err
+	}
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS post_queue(
+	uri TEXT NOT NULL,
+	next_fetch_at TEXT,
+	PRIMARY KEY (uri)
+)`)
 	if err != nil {
 		return db, err
 	}
@@ -147,5 +161,26 @@ func getUnprocessedPostMention(db *sql.DB) (*UnprocessedPostMention, error) {
 
 func markPostMentionAsProcessed(db *sql.DB, did string, rkey string) (error) {
 	_, err := db.Exec(`UPDATE post_mentions SET processed = TRUE WHERE did = ? AND rkey = ?`, did, rkey)
+	return err
+}
+
+func updatePostMentionDocketId(db *sql.DB, did string, rkey string, docket_id string) (error) {
+	_, err := db.Exec(`UPDATE post_mentions SET docket_id = ? WHERE did = ? AND rkey = ?`, docket_id, did, rkey)
+	return err
+}
+
+func updatePostMentionRecapSlug(db *sql.DB, did string, rkey string, recap_slug string) (error) {
+	_, err := db.Exec(`UPDATE post_mentions SET recap_slug = ? WHERE did = ? AND rkey = ?`, recap_slug, did, rkey)
+	return err
+}
+
+func updatePostMentionCourtListenerUrl(db *sql.DB, did string, rkey string, url string) (error) {
+	_, err := db.Exec(`UPDATE post_mentions SET courtlistener_url = ? WHERE did = ? AND rkey = ?`, url, did, rkey)
+	return err
+}
+
+
+func queuePostFetch(db *sql.DB, uri string) (error) {
+	_, err := db.Exec(`INSERT OR IGNORE INTO post_queue(uri) VALUES(?)`, uri)
 	return err
 }

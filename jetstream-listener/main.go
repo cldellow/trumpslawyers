@@ -14,9 +14,14 @@ import (
 const dbPath = "./doj47.sqlite"
 
 func main() {
-	db, err := initDB(dbPath)
+	jetstreamDb, err := initDB(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to init DB: %v", err)
+		log.Fatalf("Failed to init Jetstream DB: %v", err)
+	}
+
+	crawlPostMentionsDb, err := initDB(dbPath)
+	if err != nil {
+		log.Fatalf("Failed to init post mentions DB: %v", err)
 	}
 
 	// Channel to handle interrupt signals
@@ -26,8 +31,12 @@ func main() {
 	// Read messages from Jetstream
 	done := make(chan struct{})
 
-	go jetstreamListener(db, done)
-	go crawlPostMentions(db, done)
+	// Each goroutine gets its own DB. AFAICT, goroutines are green threads,
+	// so if we re-use a DB handle, we'll have re-entrant calls to the DB
+	// from the same thread. We could put locks in the db functions, or just give
+	// each goroutine its own handle.
+	go jetstreamListener(jetstreamDb, done)
+	go crawlPostMentions(crawlPostMentionsDb, done)
 
 	// Wait for interrupt signal to gracefully shutdown
 	select {
