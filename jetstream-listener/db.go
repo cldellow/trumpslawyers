@@ -92,7 +92,7 @@ func initDB(dbPath string) (*sql.DB, error) {
 
 	stmt = `
 CREATE TABLE IF NOT EXISTS posts (
-	url TEXT NOT NULL,
+	uri TEXT NOT NULL,
   did TEXT NOT NULL,
 	handle TEXT NOT NULL,
 	display_name TEXT NOT NULL,
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS posts (
 	likes INTEGER NOT NULL,
 	quotes INTEGER NOT NULL,
 	json TEXT NOT NULL,
-	PRIMARY KEY (url)
+	PRIMARY KEY (uri)
 )
 `
 	_, err = db.Exec(stmt)
@@ -214,7 +214,7 @@ type NextQueuedPost struct {
 	uri string
 	fetchable bool
 };
-func getNextPost(db *sql.DB) (*NextQueuedPost, error) {
+func getNextQueuedPost(db *sql.DB) (*NextQueuedPost, error) {
 	row := db.QueryRow(`SELECT uri, next_fetch_at IS NULL OR next_fetch_at < datetime() AS fetchable FROM post_queue ORDER BY next_fetch_at DESC NULLS FiRST LIMIT 1`)
 	var nqp NextQueuedPost
 	err := row.Scan(&nqp.uri, &nqp.fetchable)
@@ -225,4 +225,40 @@ func getNextPost(db *sql.DB) (*NextQueuedPost, error) {
 	}
 
 	return &nqp, nil
+}
+
+func updateQueuedPostNextFetchAt(db *sql.DB, uri string) (error) {
+	_, err := db.Exec(`UPDATE post_queue SET next_fetch_at = DATETIME('now', '1 day') WHERE uri = ?`, uri)
+	return err
+}
+
+func upsertPost(db *sql.DB, post PostInfo) (error) {
+	/*
+	url TEXT NOT NULL,
+  did TEXT NOT NULL,
+	handle TEXT NOT NULL,
+	display_name TEXT NOT NULL,
+	avatar TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	replies INTEGER NOT NULL,
+	reposts INTEGER NOT NULL,
+	likes INTEGER NOT NULL,
+	quotes INTEGER NOT NULL,
+	json TEXT NOT NULL,
+	*/
+	_, err := db.Exec(`INSERT INTO posts(uri, did, handle, display_name, avatar, created_at, replies, reposts, likes, quotes, json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (uri) DO UPDATE SET handle = excluded.handle, display_name = excluded.display_name, avatar = excluded.avatar, created_at = excluded.created_at, replies = excluded.replies, reposts = excluded.reposts, likes = excluded.likes, quotes = excluded.quotes, json = excluded.json`,
+	post.URL,
+	post.DID,
+	post.Handle,
+	post.DisplayName,
+	post.Avatar,
+	post.CreatedAt,
+	post.Replies,
+	post.Reposts,
+	post.Likes,
+	post.Quotes,
+	post.JSON,
+)
+
+	return err
 }

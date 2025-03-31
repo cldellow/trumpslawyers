@@ -16,7 +16,7 @@ func mirrorBlueskyPosts(db *sql.DB, done chan struct{}) {
 	defer close(done)
 	for {
 		// Poll post_queue for the next post to fetch.
-		queued_post, err := getNextPost(db)
+		queued_post, err := getNextQueuedPost(db)
 
 		if err != nil {
 			log.Fatalf("mirrorBlueskyPosts error: %v\n", err)
@@ -24,6 +24,25 @@ func mirrorBlueskyPosts(db *sql.DB, done chan struct{}) {
 
 		if queued_post != nil && queued_post.fetchable {
 			log.Printf("queued_post %v\n", queued_post)
+
+			post, err := GetBlueskyPost(queued_post.uri)
+
+			if err != nil {
+				log.Fatalf("GetBlueskyPost err: %v\n", err)
+			}
+
+			if post != nil {
+				err := upsertPost(db, *post)
+				if err != nil {
+					log.Fatalf("upsertPost failed %v\n", err)
+				}
+
+				err = updateQueuedPostNextFetchAt(db, queued_post.uri)
+				if err != nil {
+					log.Fatalf("updateQueuedPostNextFetchAt failed %v\n", err)
+				}
+
+			}
 
 			// Try to fetch it from the Bluesky API
 			time.Sleep(1 * time.Second)
