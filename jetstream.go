@@ -22,7 +22,7 @@ const jetstreamURL = "wss://jetstream1.us-east.bsky.network/subscribe"
 func jetstreamListener(db *sql.DB, feed string, done chan struct{}) {
 	defer close(done)
 	time_us, err := getCursor(db, feed)
-	fmt.Printf("feed %v has cursor time_us: %+v\n", feed, time_us)
+	log.Printf("feed %v has cursor time_us: %+v\n", feed, time_us)
 	if err != nil {
 		log.Fatalf("Failed to find cursor: %v", err)
 	}

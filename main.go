@@ -14,6 +14,7 @@ import (
 const dbPath = "./doj47.sqlite"
 
 func main() {
+	log.SetFlags(log.LstdFlags)
 	jetstreamLikesDb, err := initDB(dbPath)
 	if err != nil {
 		log.Fatalf("Failed to init Jetstream likes DB: %v", err)
