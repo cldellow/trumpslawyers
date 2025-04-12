@@ -41,7 +41,14 @@ func mirrorBlueskyPosts(db *sql.DB, done chan struct{}) {
 				if err != nil {
 					log.Fatalf("updateQueuedPostNextFetchAt failed %v\n", err)
 				}
+			} else {
+				// TODO
+				// Post was deleted.
+				//
+				// (1) Update `posts` to mark it as deleted if not already marked
+				// as such (e.g. we may not yet have fetched it)
 
+				// (2) Update post_queue to say it's deleted so we never try to re-fetch.
 			}
 
 			// Try to fetch it from the Bluesky API
