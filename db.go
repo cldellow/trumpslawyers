@@ -31,6 +31,7 @@ func initDB(dbPath string) (*sql.DB, error) {
 	// so we can resume if interrupted.
 	stmt := `
 	CREATE TABLE IF NOT EXISTS cursor (
+		feed TEXT PRIMARY KEY,
 		time_us INTEGER
 	);`
 	_, err = db.Exec(stmt)
@@ -38,40 +39,21 @@ func initDB(dbPath string) (*sql.DB, error) {
 		return db, err
 	}
 
-	_, err = db.Exec(`INSERT INTO cursor(time_us) SELECT 0 WHERE NOT EXISTS(SELECT * FROM cursor)`)
+	_, err = db.Exec(`INSERT INTO cursor(feed, time_us) SELECT 'likes', 0 WHERE NOT EXISTS(SELECT * FROM cursor WHERE feed = 'likes')`)
 	if err != nil {
 		return db, err
 	}
 
-	stmt = `
-	CREATE TABLE IF NOT EXISTS post_mentions (
-		did TEXT NOT NULL,
-		rkey TEXT NOT NULL,
-		created_at TEXT NOT NULL,
-		json TEXT NOT NULL,
-		reply_to TEXT,
-		processed BOOLEAN NOT NULL DEFAULT FALSE,
-		courtlistener_url TEXT, -- e.g. https://storage.courtlistener.com/recap/gov.uscourts.dcd.278436/gov.uscourts.dcd.278436.25.0.pdf or https://www.courtlistener.com/docket/69741724/jgg-v-trump/
-		docket_id INTEGER, -- e.g. 69741724
-		recap_slug TEXT, -- e.g. gov.uscourts.dcd.278436
-		PRIMARY KEY(did, rkey)
-	);`
-	_, err = db.Exec(stmt)
+	_, err = db.Exec(`INSERT INTO cursor(feed, time_us) SELECT 'posts', 0 WHERE NOT EXISTS(SELECT * FROM cursor WHERE feed = 'posts')`)
 	if err != nil {
 		return db, err
 	}
 
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_post_mentions_unprocessed ON post_mentions(did, rkey) WHERE processed = FALSE`)
-	if err != nil {
-		return db, err
-	}
-
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_post_mentions_docket_id ON post_mentions(docket_id) WHERE docket_id IS NOT NULL`)
-	if err != nil {
-		return db, err
-	}
-
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_post_mentions_recap_slug ON post_mentions(recap_slug) WHERE recap_slug IS NOT NULL`)
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS watched_dids(
+	did TEXT NOT NULL,
+	feed TEXT NOT NULL CHECK (feed IN ('likes', 'posts')),
+	PRIMARY KEY (did, feed)
+)`)
 	if err != nil {
 		return db, err
 	}
@@ -111,12 +93,23 @@ CREATE TABLE IF NOT EXISTS posts (
 		return db, err
 	}
 
+	// For DIDs whose likes we track, track which posts they liked.
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS likes(
+	uri TEXT NOT NULL,
+	did TEXT NOT NULL,
+	rkey TEXT NOT NULL,
+	PRIMARY KEY (did, rkey, uri)
+)`)
+	if err != nil {
+		return db, err
+	}
+
 	return db, err
 }
 
-func getCursor(db *sql.DB) (int64, error) {
+func getCursor(db *sql.DB, feed string) (int64, error) {
 	var count int64
-	err := db.QueryRow(`SELECT time_us FROM cursor`).Scan(&count)
+	err := db.QueryRow(`SELECT time_us FROM cursor WHERE feed = ?`, feed).Scan(&count)
 	if err != nil {
 		return 0, err
 	}
@@ -124,12 +117,12 @@ func getCursor(db *sql.DB) (int64, error) {
 	return count, nil
 }
 
-func setCursor(db *sql.DB, time_us int64) (error) {
-	_, err := db.Exec(`UPDATE cursor SET time_us = ?`, time_us)
+func setCursor(db *sql.DB, feed string, time_us int64) (error) {
+	_, err := db.Exec(`UPDATE cursor SET time_us = ? WHERE feed = ?`, time_us, feed)
 	return err
 }
 
-func updateCursor(db *sql.DB, message []byte) {
+func updateCursor(db *sql.DB, feed string, message []byte) {
 	// Parse the JSON message
 	var event map[string]interface{}
 	//if err := json.Unmarshal(message, &event); err != nil {
@@ -149,63 +142,56 @@ func updateCursor(db *sql.DB, message []byte) {
 	}
 
 	log.Printf("resetting time_us to %v (%vs ago)", time_usInt, (time.Now().UnixMicro() - time_usInt) / 1e6)
-	err = setCursor(db, time_usInt)
+	err = setCursor(db, feed, time_usInt)
 	if err != nil {
 		log.Fatalf("Failed to set cursor: %v", err)
 	}
 }
 
-func upsertPostMention(db *sql.DB, did string, rkey string, createdAt string, replyTo *string, json string) (error) {
-	_, err := db.Exec(`INSERT OR IGNORE INTO post_mentions(did, rkey, created_at, reply_to, json) VALUES (?, ?, ?, ?, ?)`, did, rkey, createdAt, replyTo, json)
-	return err
-}
+func getWatchedDids(db *sql.DB, feed string) ([]string, error) {
+	rows, err := db.Query(`SELECT did FROM watched_dids WHERE feed = $1`, feed)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-func deletePostMention(db *sql.DB, did string, rkey string) (error) {
-	_, err := db.Exec(`DELETE FROM post_mentions WHERE did = ? AND rkey = ?`, did, rkey)
-	return err
-}
+	var dids []string
+	for rows.Next() {
+		var did string
+		if err := rows.Scan(&did); err != nil {
+			return nil, err
+		}
+		dids = append(dids, did)
+	}
 
-type UnprocessedPostMention struct {
-	did string
-	rkey string
-	reply_to *string
-	json string
-};
-
-func getUnprocessedPostMention(db *sql.DB) (*UnprocessedPostMention, error) {
-	row := db.QueryRow(`SELECT did, rkey, reply_to, json FROM post_mentions WHERE NOT processed LIMIT 1`)
-	var upm UnprocessedPostMention
-	err := row.Scan(&upm.did, &upm.rkey, &upm.reply_to, &upm.json)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	} else if err != nil {
+	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return &upm, nil
+	return dids, nil
 }
 
-func markPostMentionAsProcessed(db *sql.DB, did string, rkey string) (error) {
-	_, err := db.Exec(`UPDATE post_mentions SET processed = TRUE WHERE did = ? AND rkey = ?`, did, rkey)
+func upsertLikes(db *sql.DB, did string, rkey string, uri string) (error) {
+	_, err := db.Exec(`INSERT OR IGNORE INTO likes(did, rkey, uri) VALUES (?, ?, ?)`, did, rkey, uri)
 	return err
 }
 
-func updatePostMentionDocketId(db *sql.DB, did string, rkey string, docket_id string) (error) {
-	_, err := db.Exec(`UPDATE post_mentions SET docket_id = ? WHERE did = ? AND rkey = ?`, docket_id, did, rkey)
+func deleteLike(db *sql.DB, did string, rkey string) (error) {
+	_, err := db.Exec(`DELETE FROM likes WHERE did = ? AND rkey = ?`, did, rkey)
 	return err
 }
 
-func updatePostMentionRecapSlug(db *sql.DB, did string, rkey string, recap_slug string) (error) {
-	_, err := db.Exec(`UPDATE post_mentions SET recap_slug = ? WHERE did = ? AND rkey = ?`, recap_slug, did, rkey)
+func deletePost(db *sql.DB, uri string) (error) {
+	_, err := db.Exec(`DELETE FROM posts WHERE uri = ?`, uri)
 	return err
 }
 
-func updatePostMentionCourtListenerUrl(db *sql.DB, did string, rkey string, url string) (error) {
-	_, err := db.Exec(`UPDATE post_mentions SET courtlistener_url = ? WHERE did = ? AND rkey = ?`, url, did, rkey)
+func deletePostQueue(db *sql.DB, uri string) (error) {
+	_, err := db.Exec(`DELETE FROM post_queue WHERE uri = ?`, uri)
 	return err
 }
 
-func queuePostFetch(db *sql.DB, uri string) (error) {
+func upsertPostQueue(db *sql.DB, uri string) (error) {
 	_, err := db.Exec(`INSERT OR IGNORE INTO post_queue(uri) VALUES(?)`, uri)
 	return err
 }

@@ -6,7 +6,7 @@ package main
 // post_mentions table with minimal processing for later evaluation.
 
 import (
-	"bytes"
+	//"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -19,10 +19,10 @@ import (
 
 const jetstreamURL = "wss://jetstream1.us-east.bsky.network/subscribe"
 
-func jetstreamListener(db *sql.DB, done chan struct{}) {
+func jetstreamListener(db *sql.DB, feed string, done chan struct{}) {
 	defer close(done)
-	time_us, err := getCursor(db)
-	fmt.Printf("Received time_us: %+v\n", time_us)
+	time_us, err := getCursor(db, feed)
+	fmt.Printf("feed %v has cursor time_us: %+v\n", feed, time_us)
 	if err != nil {
 		log.Fatalf("Failed to find cursor: %v", err)
 	}
@@ -33,10 +33,25 @@ func jetstreamListener(db *sql.DB, done chan struct{}) {
 		log.Fatalf("Invalid Jetstream URL: %v", err)
 	}
 
+	var collection = ""
+	if feed == "likes" {
+		// https://github.com/bluesky-social/atproto/blob/main/lexicons/app/bsky/feed/like.json
+		collection = "app.bsky.feed.like"
+	} else if feed == "posts" {
+		// https://github.com/bluesky-social/atproto/blob/main/lexicons/app/bsky/feed/post.json
+		collection = "app.bsky.feed.post"
+	} else {
+		log.Fatalf("unknown feed %v\n", feed)
+	}
 
-	// Subscription parameters
+	wantedDids, err := getWatchedDids(db, feed)
+	if err != nil {
+		log.Fatalf("Cannot get wantedDids for feed %v: %v\n", feed, err)
+	}
+	// See https://github.com/bluesky-social/jetstream?tab=readme-ov-file#consuming-jetstream
 	var params = map[string]interface{}{
-		"wantedCollections": []string{"app.bsky.feed.post"},
+		"wantedCollections": []string{collection},
+		"wantedDids": wantedDids,
 		"cursor": time_us,
 	}
 
@@ -72,17 +87,10 @@ func jetstreamListener(db *sql.DB, done chan struct{}) {
 		// Periodically sync time_us into the progress table
 		// so that we can resume if interrupted.
 		counter = counter + 1
-		if counter % 1000 == 0 {
-			updateCursor(db, message)
+		// Actually: now that we filter to specific accounts, sync immediately
+		if counter % 1 == 0 {
+			updateCursor(db, feed, message)
 			counter = 0
-		}
-
-		// Only parse it if it contains a reference to doj47.com, or if it's
-		// a delete.
-		doj47Did := []byte("did:plc:dcclyrbpqvapa3f44zm4w4zq")
-		deleteBytes := []byte("\"delete\"")
-		if !(bytes.Contains(message, doj47Did) || bytes.Contains(message, deleteBytes)) {
-			continue
 		}
 
 		// Parse the JSON message
@@ -98,8 +106,6 @@ func jetstreamListener(db *sql.DB, done chan struct{}) {
 }
 
 func processJetstreamEvent(db *sql.DB, event map[string]interface{}, message []byte) {
-	// This is quite spammy with all the deletes - if we want to log for debugging,
-	// we probably 
 	// fmt.Printf("Received %v\n", string(message))
 
 	kind := event["kind"]
@@ -109,29 +115,43 @@ func processJetstreamEvent(db *sql.DB, event map[string]interface{}, message []b
 		did := event["did"].(string)
 		rkey := commit["rkey"].(string)
 
-
 		if operation == "create" {
-			fmt.Printf("operation=%v, did=%v, rkey=%v\n", operation, did, rkey)
+			//fmt.Printf("operation=%v, did=%v, rkey=%v\n", operation, did, rkey)
 			// Eventually: extract if it was a reply, e.g. .commit.record.reply.parent.url
 			record := commit["record"].(map[string]interface{})
-			reply := record["reply"]
-			var reply_to *string = nil
-			if reply != nil {
-				replyMap := reply.(map[string]interface{})
-				parent := replyMap["parent"].(map[string]interface{})
-				url := parent["uri"].(string)
-				reply_to = &url
-			}
-			createdAt := record["createdAt"].(string)
-			err := upsertPostMention(db, did, rkey, createdAt, reply_to, string(message))
-			if err != nil {
-				log.Fatalf("error upserting %v/%v: %v", did, rkey, err)
+
+			type_ := record["$type"]
+
+			if type_ == "app.bsky.feed.like" {
+				subject := record["subject"].(map[string]interface{})
+				uri := subject["uri"].(string)
+				err := upsertLikes(db, did, rkey, uri)
+				if err != nil {
+					log.Fatalf("upsertLikes failed: %v\n", err)
+				}
+				err = upsertPostQueue(db, uri)
+				if err != nil {
+					log.Fatalf("upsertPostQueue failed: %v\n", err)
+				}
+			} else if type_ == "app.bsky.feed.post" {
+				uri := "at://" + did + "/app.bsky.feed.post/" + rkey
+				err := upsertPostQueue(db, uri)
+				if err != nil {
+					log.Fatalf("upsertPostQueue failed: %v\n", err)
+				}
 			}
 		} else if operation == "delete" {
-			err := deletePostMention(db, did, rkey)
-			if err != nil {
-				log.Fatalf("error deleting %v/%v: %v", did, rkey, err)
+			collection := commit["collection"]
+
+			if collection == "app.bsky.feed.like" {
+				err := deleteLike(db, did, rkey)
+				if err != nil {
+					log.Fatalf("error deleting like for did %v rkey %v\n", did, rkey)
+				}
 			}
+
+			// We don't bother deleting posts, they'll get discovered and deleted
+			// in our periodic post refreshing.
 		}
 	}
 }

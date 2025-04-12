@@ -14,14 +14,14 @@ import (
 const dbPath = "./doj47.sqlite"
 
 func main() {
-	jetstreamDb, err := initDB(dbPath)
+	jetstreamLikesDb, err := initDB(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to init Jetstream DB: %v", err)
+		log.Fatalf("Failed to init Jetstream likes DB: %v", err)
 	}
 
-	crawlPostMentionsDb, err := initDB(dbPath)
+	jetstreamPostsDb, err := initDB(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to init post mentions DB: %v", err)
+		log.Fatalf("Failed to init Jetstream posts DB: %v", err)
 	}
 
 	mirrorBlueskyPostsDb, err := initDB(dbPath)
@@ -40,8 +40,8 @@ func main() {
 	// so if we re-use a DB handle, we'll have re-entrant calls to the DB
 	// from the same thread. We could put locks in the db functions, or just give
 	// each goroutine its own handle.
-	go jetstreamListener(jetstreamDb, done)
-	go crawlPostMentions(crawlPostMentionsDb, done)
+	go jetstreamListener(jetstreamLikesDb, "likes", done)
+	go jetstreamListener(jetstreamPostsDb, "posts", done)
 	go mirrorBlueskyPosts(mirrorBlueskyPostsDb, done)
 
 	// Wait for interrupt signal to gracefully shutdown
