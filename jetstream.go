@@ -33,13 +33,14 @@ func jetstreamListener(db *sql.DB, feed string, done chan struct{}) {
 		log.Fatalf("Invalid Jetstream URL: %v", err)
 	}
 
-	var collection = ""
+	var collections []string
 	if feed == "likes" {
 		// https://github.com/bluesky-social/atproto/blob/main/lexicons/app/bsky/feed/like.json
-		collection = "app.bsky.feed.like"
+		collections = []string{"app.bsky.feed.like"}
 	} else if feed == "posts" {
 		// https://github.com/bluesky-social/atproto/blob/main/lexicons/app/bsky/feed/post.json
-		collection = "app.bsky.feed.post"
+		// https://github.com/bluesky-social/atproto/blob/main/lexicons/app/bsky/feed/repost.json
+		collections = []string{"app.bsky.feed.post", "app.bsky.feed.repost"}
 	} else {
 		log.Fatalf("unknown feed %v\n", feed)
 	}
@@ -50,7 +51,7 @@ func jetstreamListener(db *sql.DB, feed string, done chan struct{}) {
 	}
 	// See https://github.com/bluesky-social/jetstream?tab=readme-ov-file#consuming-jetstream
 	var params = map[string]interface{}{
-		"wantedCollections": []string{collection},
+		"wantedCollections": collections,
 		"wantedDids": wantedDids,
 		"cursor": time_us,
 	}
@@ -135,6 +136,13 @@ func processJetstreamEvent(db *sql.DB, event map[string]interface{}, message []b
 				}
 			} else if type_ == "app.bsky.feed.post" {
 				uri := "at://" + did + "/app.bsky.feed.post/" + rkey
+				err := upsertPostQueue(db, uri)
+				if err != nil {
+					log.Fatalf("upsertPostQueue failed: %v\n", err)
+				}
+			} else if type_ == "app.bsky.feed.repost" {
+				subject := record["subject"].(map[string]interface{})
+				uri := subject["uri"].(string)
 				err := upsertPostQueue(db, uri)
 				if err != nil {
 					log.Fatalf("upsertPostQueue failed: %v\n", err)

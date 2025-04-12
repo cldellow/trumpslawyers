@@ -141,7 +141,7 @@ func updateCursor(db *sql.DB, feed string, message []byte) {
 		log.Fatalf("time_us was not an int64: %v", err)
 	}
 
-	log.Printf("resetting time_us to %v (%vs ago)", time_usInt, (time.Now().UnixMicro() - time_usInt) / 1e6)
+	log.Printf("resetting %v time_us to %v (%vs ago)", feed, time_usInt, (time.Now().UnixMicro() - time_usInt) / 1e6)
 	err = setCursor(db, feed, time_usInt)
 	if err != nil {
 		log.Fatalf("Failed to set cursor: %v", err)
@@ -219,19 +219,6 @@ func updateQueuedPostNextFetchAt(db *sql.DB, uri string) (error) {
 }
 
 func upsertPost(db *sql.DB, post PostInfo) (error) {
-	/*
-	url TEXT NOT NULL,
-  did TEXT NOT NULL,
-	handle TEXT NOT NULL,
-	display_name TEXT NOT NULL,
-	avatar TEXT NOT NULL,
-	created_at TEXT NOT NULL,
-	replies INTEGER NOT NULL,
-	reposts INTEGER NOT NULL,
-	likes INTEGER NOT NULL,
-	quotes INTEGER NOT NULL,
-	json TEXT NOT NULL,
-	*/
 	_, err := db.Exec(`INSERT INTO posts(uri, did, handle, display_name, avatar, created_at, replies, reposts, likes, quotes, json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (uri) DO UPDATE SET handle = excluded.handle, display_name = excluded.display_name, avatar = excluded.avatar, created_at = excluded.created_at, replies = excluded.replies, reposts = excluded.reposts, likes = excluded.likes, quotes = excluded.quotes, json = excluded.json`,
 	post.URL,
 	post.DID,
