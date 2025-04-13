@@ -11,6 +11,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
+cd "$(dirname "$0")"
+
 # Step 1: Use sqlite3 to safely create a backup
 sqlite3 "$DB_PATH" ".backup '$TEMP_BACKUP'"
 
