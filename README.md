@@ -1,4 +1,4 @@
-# jetstream-listener
+# scraper
 
 This is a standalone Go service. It ingests the [Bluesky Jetstream](https://github.com/bluesky-social/jetstream) to discover tweets
 that should be included on https://doj47.com.
@@ -19,8 +19,12 @@ Run with `go run *.go`.
 
 A `doj47.sqlite` DB will be created if needed.
 
-If you're testing locally, you might want to create your own account and update the DID
-that is used, rather than testing against the real doj47.com DID.
+Insert some entries into `watched_dids` and restart the service:
+
+```sql
+INSERT INTO watched_dids(did, feed) VALUES ('did:plc:36eqtmzysqf7wsslczw4uxcd', 'likes');
+INSERT INTO watched_dids(did, feed) VALUES ('did:plc:36eqtmzysqf7wsslczw4uxcd', 'posts');
+```
 
 # DB schema
 
