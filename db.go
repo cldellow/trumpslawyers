@@ -216,7 +216,10 @@ func getNextQueuedPost(db *sql.DB) (*NextQueuedPost, error) {
 }
 
 func updateQueuedPostNextFetchAt(db *sql.DB, uri string) (error) {
-	_, err := db.Exec(`UPDATE post_queue SET next_fetch_at = DATETIME('now', '1 day') WHERE uri = ?`, uri)
+//	_, err := db.Exec(`UPDATE post_queue SET next_fetch_at = DATETIME('now', '1 day') WHERE uri = ?`, uri)
+	_, err := db.Exec(`UPDATE post_queue
+SET next_fetch_at = datetime('now', '+' || MAX(strftime('%s', 'now') - strftime('%s', (SELECT created_at FROM posts WHERE posts.uri = post_queue.uri)), 3600) || ' seconds')
+WHERE uri = ?`, uri)
 	return err
 }
 
