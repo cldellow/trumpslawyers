@@ -203,7 +203,7 @@ type NextQueuedPost struct {
 	fetchable bool
 };
 func getNextQueuedPost(db *sql.DB) (*NextQueuedPost, error) {
-	row := db.QueryRow(`SELECT uri, next_fetch_at IS NULL OR next_fetch_at < datetime() AS fetchable FROM post_queue ORDER BY next_fetch_at DESC NULLS FiRST LIMIT 1`)
+	row:= db.QueryRow(`SELECT uri, next_fetch_at IS NULL OR next_fetch_at < datetime() AS fetchable FROM post_queue ORDER BY next_fetch_at ASC NULLS FiRST LIMIT 1`)
 	var nqp NextQueuedPost
 	err := row.Scan(&nqp.uri, &nqp.fetchable)
 	if err == sql.ErrNoRows {
